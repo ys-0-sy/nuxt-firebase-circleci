@@ -1,0 +1,87 @@
+version: 2.1
+
+executors:
+  default:
+    working_directory: ~/repo
+    docker:
+      - image: circleci/node:10
+        environment:
+          TZ: Asia/Tokyo
+
+
+commands:
+  restore_npm:
+    steps:
+      - restore_cache:
+          name: Restpre npm dependencies
+          keys: 
+            - npm-v1-{{ checksum "app/package-lock.json" }}-{{ checksum "functions/package-lock.json" }}
+            - npm-v1-{{ checksum "app/package-lock.json" }}
+            - npm-v1
+  save_npm:
+    steps:
+      - save_cache:
+          name: Cache npm dependencies
+          key: npm-v1-{{ checksum "app/package-lock.json" }}-{{ checksum "functions/package-lock.json" }}
+          paths:
+            - ~/repo/node_modules
+            - ~/repo/app/node_modules
+            - ~/repo/functions/node_modules
+
+jobs:
+  setup:
+    executor:
+      name: default
+    steps:
+      - checkout
+      - restore_npm
+      - run:
+          name: Install app npm dependencies
+          command: cd app && npm ci
+      - run:
+          name: Install functions npm dependencies
+          command: cd functions && npm ci
+      - run :
+          name: friebase-tools install
+          command: npm install -D firebase-tools
+      - save_npm
+
+  host_deploy:
+    executor:
+      name: default
+    steps:
+      - checkout
+      - restore_npm
+      - run:
+          name: generate statics
+          command: cd app && npm run generate
+      - run:
+          name: deploy
+          command: ./node_modules/.bin/firebase deploy --only hosting --token=$FIREBASE_TOKEN
+
+  function_deploy:
+    executor:
+      name: default
+    steps:
+      - checkout
+      - restore_npm
+      - run:
+          name: deploy
+          command: ./node_modules/.bin/firebase deploy --only functions --token=$FIREBASE_TOKEN
+
+workflows:
+  build-deploy:
+    jobs:
+      - setup
+      - host_deploy:
+          requires:
+            - setup
+          filters:
+            branches:
+              only: master
+      - function_deploy:
+          requires:
+            - setup
+          filters:
+            branches:
+              only: master
