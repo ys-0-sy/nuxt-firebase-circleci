@@ -13,7 +13,7 @@ commands:
   restore_npm:
     steps:
       - restore_cache:
-          name: Restpre npm dependencies
+          name: Restore npm dependencies
           keys: 
             - npm-v1-{{ checksum "app/package-lock.json" }}-{{ checksum "functions/package-lock.json" }}
             - npm-v1-{{ checksum "app/package-lock.json" }}
